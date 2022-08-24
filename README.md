@@ -63,7 +63,7 @@ Go to Azure portal and search for your service principal for Azure DevOps in you
 
 ![clientId_tenantId](images/clientId_tenantId.png)
 
-#### Where you can find `clientSecret` by 
+#### Where you can find `clientSecret`
 Create a Secret for the Service Principal and copy the secret.
 ![clientSecret](images/clientSecret.png)
 
