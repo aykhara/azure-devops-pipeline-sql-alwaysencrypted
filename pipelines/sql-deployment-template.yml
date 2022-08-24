@@ -1,0 +1,82 @@
+trigger: none
+
+pool:
+  vmImage: windows-2022
+
+variables:
+- name: AzureSvcName
+  value: AyharaSampleConnectionService
+- group: iac-deploy-variables
+- name: SqlServerName
+  value: sql-ayhara-sample
+- name: SqlDatabaseName
+  value: sqldb-ayhara-sample-ado
+- name: resourceGroup
+  value: rg-ayhara-playground
+- name: akvName
+  value: kv-ayhara-sample-ado
+- name: akvKeyName
+  value: CMKAuto1
+- name: cmkName
+  value: CMK_Auto1
+- name: cekName
+  value: CEK_Auto1
+- name: encryptedColumnName
+  value: dbo.User.Password
+
+
+stages:
+  - stage: BuildDacpac
+    jobs:
+      - job: BuildDacpac
+        displayName: Build DACPAC
+        steps:
+          - task: VSBuild@1
+            displayName: Build DACPAC
+            inputs:
+              solution: "**/*.sln"
+              platform: Any CPU
+              configuration: Release
+          - task: PublishPipelineArtifact@1
+            displayName: Publish DACPAC
+            inputs:
+              targetPath: $(Build.SourcesDirectory)
+              artifactName: sqlproj_artifacts
+
+  - stage: DeployDacpac
+    jobs:
+      - job: DeployDacpac
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: Download DACPAC
+            inputs:
+              artifact: sqlproj_artifacts
+          - task: SqlAzureDacpacDeployment@1
+            displayName: Deploy DACPAC
+            inputs:
+              azureSubscription: $(AzureSvcName)
+              ServerName: $(SqlServerName).database.windows.net
+              DatabaseName: $(SqlDatabaseName)
+              SqlUsername: $(SQLUSER)
+              SqlPassword: $(SQLPASSWORD)
+              DacpacFile: $(Pipeline.Workspace)/src/DB/bin/Release/DB.dacpac
+              ipDetectionMethod: AutoDetect
+              DeleteFirewallRule: true
+          - task: AzurePowerShell@5
+            displayName: 'Add sample data'
+            inputs:
+              azureSubscription: $(AzureSvcName)
+              scriptPath: '$(Pipeline.Workspace)/alwaysencrypted/1_add_data.ps1'
+              TargetAzurePs: LatestVersion
+          - task: AzurePowerShell@5
+            displayName: 'Create CMK and CEK'
+            inputs:
+              azureSubscription: $(AzureSvcName)
+              scriptPath: '$(Pipeline.Workspace)/alwaysencrypted/2_create_cmk_cek.ps1'
+              TargetAzurePs: LatestVersion
+          - task: AzurePowerShell@5
+            displayName: 'Encrypt columns'
+            inputs:
+              azureSubscription: $(AzureSvcName)
+              scriptPath: '$(Pipeline.Workspace)/alwaysencrypted/3_encrypt_columns.ps1'
+              TargetAzurePs: LatestVersion
